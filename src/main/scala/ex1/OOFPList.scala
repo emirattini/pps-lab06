@@ -1,5 +1,7 @@
 package ex1
 
+import scala.::
+
 // List as a pure interface
 enum List[A]:
   case ::(h: A, t: List[A])
@@ -22,14 +24,6 @@ enum List[A]:
     case h :: t if pos > 0 => t.get(pos - 1)
     case _ => None
 
-  def foldLeft[B](init: B)(op: (B, A) => B): B = this match
-    case h :: t => t.foldLeft(op(init, h))(op)
-    case _ => init
-
-  def foldRight[B](init: B)(op: (A, B) => B): B = this match
-    case h :: t => op(h, t.foldRight(init)(op))
-    case _ => init
-
   def append(list: List[A]): List[A] =
     foldRight(list)(_ :: _)
 
@@ -45,12 +39,29 @@ enum List[A]:
     case h :: t => t.foldLeft(h)(op)
 
   // Exercise: implement the following methods
-  def zipWithValue[B](value: B): List[(A, B)] = ???
-  def length(): Int = ???
-  def zipWithIndex: List[(A, Int)] = ???
-  def partition(predicate: A => Boolean): (List[A], List[A]) = ???
+  def foldLeft[B](init: B)(op: (B, A) => B): B = this match
+    case h :: t => t.foldLeft(op(init, h))(op)
+    case _ => init
+
+  def foldRight[B](init: B)(op: (A, B) => B): B = this match
+    case h :: t => op(h, t.foldRight(init)(op))
+    case _ => init
+
+  def zipWithValue[B](value: B): List[(A, B)] = foldRight(Nil())((_, value) :: _)
+  def length(): Int = foldLeft(0)((b, _) => b + 1)
+  def zipWithChangingValue[B](init: B)(op: B => B): List[(A, B)] = 
+    foldRight((Nil[(A, B)](), init))((a, b) => ((a, b._2) :: b._1, op(b._2)))._1
+  def zipWithIndex: List[(A, Int)] = zipWithChangingValue(this.length() - 1)(_ - 1)
+  def zipWithIndexIter: List[(A, Int)] =
+    def iter(list: List[A], index: Int): List[(A, Int)] = list match
+      case h :: t => (h, index) :: iter(t, index + 1)
+      case _ => Nil()
+    iter(this, 0)
+  def partitionWithFilter(predicate: A => Boolean): (List[A], List[A]) = (filter(predicate), filter(a => !predicate(a)))
+  def partition(predicate: A => Boolean): (List[A], List[A]) = foldRight((Nil(), Nil()))((a, b) => 
+    if predicate(a) then (a :: b._1, b._2) else (b._1, a :: b._2))
   def span(predicate: A => Boolean): (List[A], List[A]) = ???
-  def takeRight(n: Int): List[A] = ???
+  def takeRight(n: Int): List[A] = zipWithChangingValue(0)(_ + 1).filter((_, i) => i < n).map((a, _) => a)
   def collect(predicate: PartialFunction[A, A]): List[A] = ???
 // Factories
 object List:
@@ -66,10 +77,13 @@ object List:
 object Test extends App:
 
   import List.*
-  val reference = List(1, 2, 3, 4)
+  val reference = List(10, 20, 30, 40)
+  println(reference)
   println(reference.zipWithValue(10)) // List((1, 10), (2, 10), (3, 10), (4, 10))
+  println(reference.length())
   println(reference.zipWithIndex) // List((1, 0), (2, 1), (3, 2), (4, 3))
   println(reference.partition(_ % 2 == 0)) // (List(2, 4), List(1, 3))
+  println(reference.partitionWithFilter(_ % 2 == 0)) // (List(2, 4), List(1, 3))
   println(reference.span(_ % 2 != 0)) // (List(1), List(2, 3, 4))
   println(reference.span(_ < 3)) // (List(1, 2), List(3, 4))
   println(reference.reduce(_ + _)) // 10
